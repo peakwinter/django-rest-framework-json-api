@@ -12,7 +12,6 @@ from rest_framework.serializers import BaseSerializer, ListSerializer, Serialize
 from rest_framework.settings import api_settings
 
 from rest_framework_json_api import utils
-from rest_framework_json_api.serializers import PolymorphicModelSerializer
 
 
 class JSONRenderer(renderers.JSONRenderer):
@@ -545,7 +544,7 @@ class JSONRenderer(renderers.JSONRenderer):
                 for position in range(len(serializer_data)):
                     resource = serializer_data[position]  # Get current resource
                     resource_instance = serializer.instance[position]  # Get current instance
-                    if isinstance(serializer.child, PolymorphicModelSerializer):
+                    if hasattr(serializer.child, '_poly_force_type_resolution'):
                         resource_serializer_class = serializer.child.\
                             get_polymorphic_serializer_for_instance(resource_instance)
                         resource_serializer = resource_serializer_class(resource_instance)
