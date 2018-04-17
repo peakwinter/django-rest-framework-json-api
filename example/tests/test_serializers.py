@@ -1,13 +1,12 @@
 import pytest
-from django.core.urlresolvers import reverse
 from django.test import TestCase
+from django.urls import reverse
 from django.utils import timezone
 
 from rest_framework_json_api.serializers import ResourceIdentifierObjectSerializer
 from rest_framework_json_api.utils import format_resource_type
 
 from example.models import Author, Blog, Entry
-from example.tests.utils import load_json
 
 pytestmark = pytest.mark.django_db
 
@@ -114,7 +113,4 @@ class TestModelSerializer(object):
         response = client.get(reverse("comment-detail", kwargs={'pk': comment.pk}))
 
         assert response.status_code == 200
-
-        parsed_content = load_json(response.content)
-
-        assert expected == parsed_content
+        assert expected == response.json()

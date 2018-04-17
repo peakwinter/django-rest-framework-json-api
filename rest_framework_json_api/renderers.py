@@ -11,6 +11,7 @@ from rest_framework import relations, renderers
 from rest_framework.serializers import BaseSerializer, ListSerializer, Serializer
 from rest_framework.settings import api_settings
 
+import rest_framework_json_api
 from rest_framework_json_api import utils
 
 
@@ -125,11 +126,12 @@ class JSONRenderer(renderers.JSONRenderer):
                 continue
 
             if isinstance(field, ResourceRelatedField):
-                resolved, relation_instance = utils.get_relation_instance(
-                    resource_instance, source, field.parent
-                )
-                if not resolved:
-                    continue
+                relation_instance_id = getattr(resource_instance, source + "_id", None)
+                if not relation_instance_id:
+                    resolved, relation_instance = utils.get_relation_instance(resource_instance,
+                                                                              source, field.parent)
+                    if not resolved:
+                        continue
 
                 # special case for ResourceRelatedField
                 relation_data = {
@@ -256,18 +258,23 @@ class JSONRenderer(renderers.JSONRenderer):
                     continue
 
             if isinstance(field, Serializer):
-                resolved, relation_instance = utils.get_relation_instance(
-                    resource_instance, source, field.parent
-                )
-                if not resolved:
-                    continue
+                relation_instance_id = getattr(resource_instance, source + "_id", None)
+                if not relation_instance_id:
+                    resolved, relation_instance = utils.get_relation_instance(
+                        resource_instance, source, field.parent
+                    )
+                    if not resolved:
+                        continue
+
+                    if relation_instance is not None:
+                        relation_instance_id = relation_instance.pk
 
                 data.update({
                     field_name: {
                         'data': (
                             OrderedDict([
                                 ('type', relation_type),
-                                ('id', encoding.force_text(relation_instance.pk))
+                                ('id', encoding.force_text(relation_instance_id))
                             ]) if resource.get(field_name) else None)
                     }
                 })
@@ -490,6 +497,8 @@ class JSONRenderer(renderers.JSONRenderer):
 
     def render(self, data, accepted_media_type=None, renderer_context=None):
 
+        renderer_context = renderer_context or {}
+
         view = renderer_context.get("view", None)
         request = renderer_context.get("request", None)
 
@@ -554,6 +563,17 @@ class JSONRenderer(renderers.JSONRenderer):
                     force_type_resolution = getattr(resource_serializer,
                                                     '_poly_force_type_resolution', False)
 
+                    if isinstance(serializer.child, rest_framework_json_api.
+                                  serializers.PolymorphicModelSerializer):
+                        resource_serializer_class = serializer.child.\
+                            get_polymorphic_serializer_for_instance(resource_instance)()
+                    else:
+                        resource_serializer_class = serializer.child
+
+                    fields = utils.get_serializer_fields(resource_serializer_class)
+                    force_type_resolution = getattr(
+                        resource_serializer_class, '_poly_force_type_resolution', False)
+
                     json_resource_obj = self.build_json_resource_obj(
                         fields, resource, resource_instance, resource_name, force_type_resolution
                     )
@@ -568,6 +588,9 @@ class JSONRenderer(renderers.JSONRenderer):
                     if included:
                         json_api_included.extend(included)
             else:
+                fields = utils.get_serializer_fields(serializer)
+                force_type_resolution = getattr(serializer, '_poly_force_type_resolution', False)
+
                 resource_instance = serializer.instance
                 fields = utils.get_serializer_fields(serializer)
                 force_type_resolution = getattr(serializer, '_poly_force_type_resolution', False)

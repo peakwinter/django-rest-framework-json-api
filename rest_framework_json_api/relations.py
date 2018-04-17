@@ -5,7 +5,7 @@ from collections import OrderedDict
 import inflection
 import six
 from django.core.exceptions import ImproperlyConfigured
-from django.core.urlresolvers import NoReverseMatch
+from django.urls import NoReverseMatch
 from django.utils.translation import ugettext_lazy as _
 from django.utils.module_loading import import_string as import_class_from_dotted_path
 from rest_framework.fields import MISSING_ERROR_MESSAGE
@@ -77,7 +77,7 @@ class ResourceRelatedField(PrimaryKeyRelatedField):
 
     def use_pk_only_optimization(self):
         # We need the real object to determine its type...
-        return False
+        return self.get_resource_type_from_included_serializer() is not None
 
     def conflict(self, key, **kwargs):
         """
@@ -252,6 +252,9 @@ class PolymorphicResourceRelatedField(ResourceRelatedField):
         self.polymorphic_serializer = polymorphic_serializer
         super(PolymorphicResourceRelatedField, self).__init__(*args, **kwargs)
 
+    def use_pk_only_optimization(self):
+        return False
+
     def to_internal_value(self, data):
         if isinstance(data, six.text_type):
             try:
@@ -295,8 +298,6 @@ class SerializerMethodResourceRelatedField(ResourceRelatedField):
         return super(ResourceRelatedField, cls).__new__(cls, *args, **kwargs)
 
     def __init__(self, child_relation=None, *args, **kwargs):
-        # DRF 3.1 doesn't expect the `many` kwarg
-        kwargs.pop('many', None)
         model = kwargs.pop('model', None)
         if child_relation is not None:
             self.child_relation = child_relation

@@ -1,10 +1,10 @@
+import pytest
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.core.urlresolvers import reverse
+from django.urls import reverse
 from django.utils import encoding
 
 from example.tests import TestBase
-from example.tests.utils import dump_json, load_json
 
 
 class ModelViewSetTests(TestBase):
@@ -62,9 +62,7 @@ class ModelViewSetTests(TestBase):
             }
         }
 
-        parsed_content = load_json(response.content)
-
-        assert expected == parsed_content
+        assert expected == response.json()
 
     def test_page_two_in_list_result(self):
         """
@@ -101,9 +99,7 @@ class ModelViewSetTests(TestBase):
             }
         }
 
-        parsed_content = load_json(response.content)
-
-        assert expected == parsed_content
+        assert expected == response.json()
 
     def test_page_range_in_list_result(self):
         """
@@ -151,9 +147,7 @@ class ModelViewSetTests(TestBase):
             }
         }
 
-        parsed_content = load_json(response.content)
-
-        assert expected == parsed_content
+        assert expected == response.json()
 
     def test_key_in_detail_result(self):
         """
@@ -174,9 +168,7 @@ class ModelViewSetTests(TestBase):
             }
         }
 
-        parsed_content = load_json(response.content)
-
-        assert expected == parsed_content
+        assert expected == response.json()
 
     def test_patch_requires_id(self):
         """
@@ -191,9 +183,7 @@ class ModelViewSetTests(TestBase):
             }
         }
 
-        response = self.client.patch(self.detail_url,
-                                     content_type='application/vnd.api+json',
-                                     data=dump_json(data))
+        response = self.client.patch(self.detail_url, data=data)
 
         self.assertEqual(response.status_code, 400)
 
@@ -214,15 +204,37 @@ class ModelViewSetTests(TestBase):
             }
         }
 
-        response = self.client.put(self.detail_url,
-                                   content_type='application/vnd.api+json',
-                                   data=dump_json(data))
+        response = self.client.put(self.detail_url, data=data)
 
-        parsed_content = load_json(response.content)
-
-        assert data == parsed_content
+        assert data == response.json()
 
         # is it updated?
         self.assertEqual(
             get_user_model().objects.get(pk=self.miles.pk).email,
             'miles@trumpet.org')
+
+
+@pytest.mark.django_db
+def test_patch_allow_field_type(author, author_type_factory, client):
+    """
+    Verify that type field may be updated.
+    """
+    author_type = author_type_factory()
+    url = reverse('author-detail', args=[author.id])
+
+    data = {
+        'data': {
+            'id': author.id,
+            'type': 'authors',
+            'relationships': {
+                'data': {
+                    'id': author_type.id,
+                    'type': 'author-type'
+                }
+            }
+        }
+    }
+
+    response = client.patch(url, data=data)
+
+    assert response.status_code == 200
